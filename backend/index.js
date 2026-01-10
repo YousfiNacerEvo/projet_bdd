@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import authRoutes from './routes/auth.js';
 import meRoutes from './routes/me.js';
+import adminRoutes from './routes/admin.js';
+import doyenRoutes from './routes/doyen.js';
+import planningRoutes from './routes/planning.js';
+import kpiRoutes from './routes/kpis.js';
 
 dotenv.config();
 
@@ -24,6 +28,10 @@ app.use('/api/auth', authRoutes);
 
 // Routes utilisateur
 app.use('/api', meRoutes); 
+app.use('/api/admin', adminRoutes);
+app.use('/api/doyen', doyenRoutes);
+app.use('/api/planning', planningRoutes);
+app.use('/api/kpis', kpiRoutes);
 
 app.post("/", async (req, res) => {
     const { name } = req.body || {};
