@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUserStore } from "../../src/stores/userStore";
+import { authApi } from "../../src/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -17,52 +18,28 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:4001/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const data = await authApi.login({ email, password });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Afficher l'erreur avec les détails si disponibles
-        const errorMessage = data.details 
-          ? `${data.error}: ${data.details}` 
-          : data.error || "Erreur lors de la connexion";
-        setError(errorMessage);
-        setLoading(false);
-        return;
-      }
-
-      // Stocker le token et les données utilisateur dans le localStorage
       if (data.session?.access_token) {
         localStorage.setItem("auth_token", data.session.access_token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        
-        // Préparer les données pour le store
+
         if (data.userMeta) {
           localStorage.setItem("userMeta", JSON.stringify(data.userMeta));
-          // Initialiser le store avec les données
           setUser({
             id: data.user.id,
             role: data.userMeta.role,
             dept_id: data.userMeta.dept_id,
             formation_id: data.userMeta.formation_id
           });
-        } else {
-          // Si pas de userMeta, essayer de récupérer depuis l'API
-          // Mais pour l'instant, on redirige quand même
         }
       }
 
-      // Rediriger vers le dashboard
-      router.push("/");
+      router.push("/dashboard");
     } catch (err) {
-      console.error("Erreur:", err);
-      setError("Erreur de connexion au serveur");
+      const message = err?.message || "Erreur de connexion au serveur";
+      setError(message);
+    } finally {
       setLoading(false);
     }
   };
