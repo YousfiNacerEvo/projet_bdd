@@ -35,7 +35,7 @@ export const NAV_ITEMS = [
     label: "KPIs",
     href: "/dashboard/kpis",
     group: "departement",
-    roles: ["chef_dept", "doyen", "admin_examens"],
+    roles: ["chef_dept", "doyen", "admin_examens", "prof", "etudiant"],
     icon: "📈"
   },
   {
