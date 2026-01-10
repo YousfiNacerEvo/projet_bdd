@@ -27,7 +27,8 @@ export const apiRequest = async (endpoint, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const url = `${API_URL}${endpoint}`;
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -38,10 +39,12 @@ export const apiRequest = async (endpoint, options = {}) => {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: "Erreur serveur" }));
+    console.error("[apiRequest] HTTP error", { url, status: response.status, error });
     throw new Error(error.error || `Erreur ${response.status}`);
   }
 
-  return response.json();
+  const json = await response.json();
+  return json;
 };
 
 /**
