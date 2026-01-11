@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { setUser } = useUserStore();
-  const API_URL ="https://projet-bdd-8nz1.onrender.com"
+  const API_URL ="http://localhost:4001"
 "https://projet-bdd-8nz1.onrender.com"
 "http://localhost:4001" 
 
@@ -48,13 +48,20 @@ export default function LoginPage() {
         
         // Préparer les données pour le store
         if (data.userMeta) {
-          localStorage.setItem("userMeta", JSON.stringify(data.userMeta));
+          const enrichedMeta = {
+            ...data.userMeta,
+            email: data.user.email
+          };
+          localStorage.setItem("userMeta", JSON.stringify(enrichedMeta));
           // Initialiser le store avec les données
           setUser({
             id: data.user.id,
             role: data.userMeta.role,
             dept_id: data.userMeta.dept_id,
-            formation_id: data.userMeta.formation_id
+            formation_id: data.userMeta.formation_id,
+            email: data.user.email,
+            nom: data.userMeta.nom,
+            prenom: data.userMeta.prenom
           });
         } else {
           // Si pas de userMeta, essayer de récupérer depuis l'API
@@ -75,6 +82,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow-lg">
         <div>
+          <h1 className="text-center text-4xl font-bold text-blue-600 mb-4">
+            Plateforme d'Optimisation des EDT
+          </h1>
           <h2 className="text-center text-3xl font-bold text-gray-900">
             Connexion
           </h2>

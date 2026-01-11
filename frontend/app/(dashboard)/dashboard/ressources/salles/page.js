@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import RoleGate from "../../../../../src/components/dashboard/RoleGate";
 import { adminApi } from "../../../../../src/lib/api";
 
@@ -15,6 +15,7 @@ export default function SallesPage() {
     capacite_examen: ""
   });
   const [editingId, setEditingId] = useState(null);
+  const formRef = useRef(null);
 
   const load = async () => {
     setLoading(true);
@@ -36,18 +37,33 @@ export default function SallesPage() {
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    
+    // Validation côté client: capacité maximum 40 élèves
+    const capacite = Number(form.capacite);
+    const capaciteExamen = Number(form.capacite_examen || form.capacite);
+    
+    if (capacite > 40) {
+      setError("La capacité d'une salle ne peut pas dépasser 40 élèves");
+      return;
+    }
+    
+    if (capaciteExamen > 40) {
+      setError("La capacité d'examen d'une salle ne peut pas dépasser 40 élèves");
+      return;
+    }
+    
     try {
       if (editingId) {
         await adminApi.updateSalle(editingId, {
           ...form,
-          capacite: Number(form.capacite),
-          capacite_examen: Number(form.capacite_examen || form.capacite)
+          capacite: capacite,
+          capacite_examen: capaciteExamen
         });
       } else {
         await adminApi.createSalle({
           ...form,
-          capacite: Number(form.capacite),
-          capacite_examen: Number(form.capacite_examen || form.capacite)
+          capacite: capacite,
+          capacite_examen: capaciteExamen
         });
       }
       setForm({ nom: "", batiment: "", type: "salle", capacite: "", capacite_examen: "" });
@@ -67,6 +83,14 @@ export default function SallesPage() {
       capacite: salle.capacite ?? salle.capacite_normale ?? "",
       capacite_examen: salle.capacite_examen ?? ""
     });
+    
+    // Scroll vers le formulaire
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ 
+        behavior: "smooth", 
+        block: "start" 
+      });
+    }, 100);
   };
 
   const remove = async (id) => {
@@ -95,7 +119,7 @@ export default function SallesPage() {
           <p className="mt-1 text-sm text-gray-500">CRUD salles et amphithéâtres avec capacités</p>
         </div>
 
-        <div className="rounded-lg bg-white p-6 shadow-sm">
+        <div className="rounded-lg bg-white p-6 shadow-sm" ref={formRef}>
           <form onSubmit={submit} className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <input
               className="rounded border p-2"
@@ -121,13 +145,18 @@ export default function SallesPage() {
               className="rounded border p-2"
               placeholder="Capacité"
               type="number"
+              min="1"
+              max="40"
               value={form.capacite}
               onChange={(e) => setForm({ ...form, capacite: e.target.value })}
+              required
             />
             <input
               className="rounded border p-2"
               placeholder="Capacité examen (optionnel)"
               type="number"
+              min="1"
+              max="40"
               value={form.capacite_examen}
               onChange={(e) => setForm({ ...form, capacite_examen: e.target.value })}
             />

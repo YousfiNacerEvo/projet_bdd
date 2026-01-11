@@ -42,28 +42,50 @@ router.get('/published', async (req, res) => {
         module:module_id (
           nom,
           id_formation,
-          formation:formation_id (nom, id_dept)
+          formation:id_formation (nom, id_dept)
         )
       `
       )
       .eq('run_id', run.id)
       .order('date', { ascending: true, foreignTable: 'creneau' })
       .order('heure_debut', { ascending: true, foreignTable: 'creneau' });
-    if (itemsErr) throw itemsErr;
+    if (itemsErr) {
+      console.error('[planning/published] items error', {
+        code: itemsErr.code,
+        message: itemsErr.message,
+        details: itemsErr.details
+      });
+      throw itemsErr;
+    }
 
     const formationId = req.user?.formation_id;
     const deptId = req.user?.dept_id;
     const role = req.user?.role;
+    const idProf = req.user?.id_prof;
+    const idEtudiant = req.user?.id_etudiant;
 
     const filtered = (items || []).filter((it) => {
       const formation = it.module?.formation;
       if (role === 'etudiant') {
-        if (!formationId) return false;
-        return formation?.id_formation === formationId;
+        // Si on a id_etudiant avec formation mappée, on utilise la formation
+        if (formationId) {
+          return formation?.id_formation === formationId;
+        }
+        // fallback : pas de formation sur l'utilisateur
+        return false;
       }
       if (role === 'prof') {
-        if (!deptId) return false;
-        return formation?.id_dept === deptId;
+        // Si on a l'id_prof, filtrer sur la liste des surveillants associée à l'item
+        if (idProf) {
+          const surv = Array.isArray(it.surveillants) ? it.surveillants : [];
+          const hasMatch = surv.some((s) => Number(s.id_prof) === Number(idProf));
+          if (hasMatch) return true;
+        }
+        // fallback département si pas de mapping ou pas trouvé
+        if (deptId) {
+          return formation?.id_dept === deptId;
+        }
+        return false;
       }
       // Admin/chef/doyen peuvent tout voir
       return true;

@@ -118,8 +118,10 @@ const chooseRoomSlot = (modulesSorted, salles, creneaux, expectedMap) => {
  * Affecte des surveillants aux items en respectant une limite/jour.
  * maxPerDay: nb max d'examens surveillés par prof par jour
  * perExam: nb de surveillants souhaités par examen
+ * La fonction calcule automatiquement le nombre de surveillants nécessaires
+ * en fonction de la taille de la salle (1 surveillant par tranche de 40 élèves)
  */
-const assignSurveillants = (items, profs, creneauMap, { maxPerDay = 3, perExam = 1 } = {}) => {
+const assignSurveillants = (items, profs, creneauMap, salleMap, { maxPerDay = 3, basePerExam = 1 } = {}) => {
   if (!profs?.length) {
     return items.map((it) => ({ ...it, surveillants: [] }));
   }
@@ -129,6 +131,12 @@ const assignSurveillants = (items, profs, creneauMap, { maxPerDay = 3, perExam =
 
   return items.map((it) => {
     const date = creneauMap[it.creneau_id]?.date || 'no_date';
+    
+    // Calculer le nombre de surveillants nécessaires basé sur la capacité de la salle
+    const salle = salleMap[it.salle_id];
+    const salleCapacity = capacityForSalle(salle);
+    // 1 surveillant par tranche de 40 élèves, minimum 1
+    const requiredSurveillants = Math.max(1, Math.ceil(salleCapacity / 40));
 
     // Réordonne pour lisser la charge (plus disponible en premier)
     profPool.sort(
@@ -143,11 +151,15 @@ const assignSurveillants = (items, profs, creneauMap, { maxPerDay = 3, perExam =
       if (count >= maxPerDay) continue;
       chosen.push({ id_prof: p.id_prof, nom: p.nom, prenom: p.prenom });
       dailyCount[key] = count + 1;
-      if (chosen.length >= perExam) break;
+      if (chosen.length >= requiredSurveillants) break;
     }
 
-    const missing = chosen.length < perExam;
-    const notes = missing ? (it.notes ? `${it.notes}; surveillant_manquant` : 'surveillant_manquant') : it.notes;
+    const missing = chosen.length < requiredSurveillants;
+    let notes = it.notes;
+    if (missing) {
+      const missingNote = `surveillant_manquant (${chosen.length}/${requiredSurveillants})`;
+      notes = notes ? `${notes}; ${missingNote}` : missingNote;
+    }
     return { ...it, surveillants: chosen, notes };
   });
 };
@@ -161,13 +173,30 @@ router.get('/salles', async (_req, res) => {
 
 router.post('/salles', async (req, res) => {
   const payload = req.body || {};
+  
+  // Validation: capacité maximum de 40 élèves
+  const capacite = payload.capacite ?? payload.capacite_normale;
+  const capaciteExamen = payload.capacite_examen ?? payload.capacite ?? payload.capacite_normale;
+  
+  if (capacite && capacite > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
+  if (capaciteExamen && capaciteExamen > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
   const row = {
     nom: payload.nom,
     batiment: payload.batiment,
     type: payload.type,
-    capacite: payload.capacite ?? payload.capacite_normale,
+    capacite: capacite,
     capacite_normale: payload.capacite_normale ?? payload.capacite,
-    capacite_examen: payload.capacite_examen ?? payload.capacite ?? payload.capacite_normale
+    capacite_examen: capaciteExamen
   };
   const { data, error } = await supabase.from('salle').insert(row).select().single();
   if (error) return res.status(500).json({ error: error.message });
@@ -177,6 +206,26 @@ router.post('/salles', async (req, res) => {
 router.patch('/salles/:id', async (req, res) => {
   const id = Number(req.params.id);
   const payload = req.body || {};
+  
+  // Validation: capacité maximum de 40 élèves
+  if (payload.capacite && payload.capacite > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
+  if (payload.capacite_normale && payload.capacite_normale > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité normale d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
+  if (payload.capacite_examen && payload.capacite_examen > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
   const updates = {
     nom: payload.nom,
     batiment: payload.batiment,
@@ -377,10 +426,16 @@ router.post('/planning/run', async (req, res) => {
     );
     const { items, occupancy } = chooseRoomSlot(modulesSorted, salles, creneaux, expectedMap);
 
+    // Create salle map for surveillant assignment
+    const salleMap = {};
+    salles.forEach((s) => {
+      salleMap[s.id_salle] = s;
+    });
+
     const itemsWithRun = items.map((i) => ({ ...i, run_id: run.id }));
-    const itemsWithSurv = assignSurveillants(itemsWithRun, profs || [], creneauMap, {
+    const itemsWithSurv = assignSurveillants(itemsWithRun, profs || [], creneauMap, salleMap, {
       maxPerDay: 3,
-      perExam: 1
+      basePerExam: 1
     });
     const pairSet = new Set();
     let duplicatePairs = 0;

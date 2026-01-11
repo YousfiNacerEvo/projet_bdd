@@ -7,14 +7,19 @@ import { getMe } from '../lib/api';
 const getInitialUser = () => {
   if (typeof window === "undefined") return null;
   const userMeta = localStorage.getItem("userMeta");
+  const user = localStorage.getItem("user");
   if (userMeta) {
     try {
       const meta = JSON.parse(userMeta);
+      const userData = user ? JSON.parse(user) : {};
       return {
         id: meta.id || null,
         role: meta.role || null,
         dept_id: meta.dept_id || null,
-        formation_id: meta.formation_id || null
+        formation_id: meta.formation_id || null,
+        email: userData.email || meta.email || null,
+        nom: meta.nom || null,
+        prenom: meta.prenom || null
       };
     } catch (e) {
       return null;
@@ -35,12 +40,22 @@ export const useUserStore = create((set) => ({
     set({ loading: true, error: null });
     try {
       const data = await getMe();
-      set({ user: data, loading: false });
+      const storedUser = localStorage.getItem("user");
+      const userData = storedUser ? JSON.parse(storedUser) : {};
+      
+      const enrichedData = {
+        ...data,
+        email: userData.email || data.email,
+        nom: data.nom || null,
+        prenom: data.prenom || null
+      };
+      
+      set({ user: enrichedData, loading: false });
       // Mettre à jour localStorage
       if (typeof window !== "undefined") {
-        localStorage.setItem("userMeta", JSON.stringify(data));
+        localStorage.setItem("userMeta", JSON.stringify(enrichedData));
       }
-      return data;
+      return enrichedData;
     } catch (error) {
       console.error('Erreur chargement user:', error);
       set({ error: error.message, loading: false, user: null });
