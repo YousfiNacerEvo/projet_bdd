@@ -1,4 +1,16 @@
 // Configuration de navigation basée sur les rôles
+import {
+  ChartBarIcon,
+  CalendarDaysIcon,
+  EyeIcon,
+  ExclamationTriangleIcon,
+  ChartPieIcon,
+  CheckCircleIcon,
+  CogIcon,
+  ClipboardDocumentListIcon,
+  BuildingOffice2Icon,
+  BookOpenIcon
+} from "@heroicons/react/24/outline";
 
 export const NAV_ITEMS = [
   // Pages communes
@@ -7,21 +19,21 @@ export const NAV_ITEMS = [
     href: "/dashboard/overview",
     group: "principal",
     roles: ["etudiant", "prof", "chef_dept", "admin_examens", "doyen"],
-    icon: "📊"
+    icon: ChartBarIcon
   },
   {
     label: "Mon planning",
     href: "/dashboard/mon-planning",
     group: "principal",
     roles: ["etudiant", "prof"],
-    icon: "📅"
+    icon: CalendarDaysIcon
   },
   {
     label: "Surveillance",
     href: "/dashboard/surveillance",
     group: "principal",
     roles: ["prof"],
-    icon: "👁️"
+    icon: EyeIcon
   },
   // Chef de département
   {
@@ -29,21 +41,21 @@ export const NAV_ITEMS = [
     href: "/dashboard/conflits",
     group: "departement",
     roles: ["chef_dept", "admin_examens", "doyen"],
-    icon: "⚠️"
+    icon: ExclamationTriangleIcon
   },
   {
     label: "KPIs",
     href: "/dashboard/kpis",
     group: "departement",
     roles: ["chef_dept", "doyen", "admin_examens", "prof", "etudiant"],
-    icon: "📈"
+    icon: ChartPieIcon
   },
   {
     label: "Validation",
     href: "/dashboard/validation",
     group: "departement",
     roles: ["chef_dept", "doyen"],
-    icon: "✅"
+    icon: CheckCircleIcon
   },
   // Admin examens
   {
@@ -51,28 +63,28 @@ export const NAV_ITEMS = [
     href: "/dashboard/planning/generate",
     group: "planning",
     roles: ["admin_examens"],
-    icon: "⚙️"
+    icon: CogIcon
   },
   {
     label: "Historique",
     href: "/dashboard/planning/runs",
     group: "planning",
     roles: ["admin_examens"],
-    icon: "📋"
+    icon: ClipboardDocumentListIcon
   },
   {
     label: "Salles",
     href: "/dashboard/ressources/salles",
     group: "ressources",
     roles: ["admin_examens"],
-    icon: "🏢"
+    icon: BuildingOffice2Icon
   },
   {
     label: "Référentiel",
     href: "/dashboard/ressources/referentiel",
     group: "ressources",
     roles: ["admin_examens"],
-    icon: "📚"
+    icon: BookOpenIcon
   },
   // Commun
   {
@@ -80,7 +92,7 @@ export const NAV_ITEMS = [
     href: "/dashboard/settings",
     group: "parametres",
     roles: ["etudiant", "prof", "chef_dept", "admin_examens", "doyen"],
-    icon: "⚙️"
+    icon: CogIcon
   }
 ];
 

@@ -48,10 +48,12 @@ export default function Header() {
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">
-                {roleLabels[user.role] || user.role}
+                {user.prenom && user.nom 
+                  ? `${user.prenom} ${user.nom}`
+                  : user.email || roleLabels[user.role] || user.role}
               </p>
-              {user.dept_id && (
-                <p className="text-xs text-gray-500">Dépt. {user.dept_id}</p>
+              {user.role && (
+                <p className="text-xs text-gray-500">{roleLabels[user.role] || user.role}</p>
               )}
             </div>
             <button

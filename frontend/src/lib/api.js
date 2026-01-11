@@ -1,6 +1,6 @@
 // Helper pour les appels API vers Express
 
-const API_URL ="https://projet-bdd-8nz1.onrender.com"
+const API_URL ="http://localhost:4001"
 "https://projet-bdd-8nz1.onrender.com"
 "http://localhost:4001" 
 
@@ -76,8 +76,13 @@ export const adminApi = {
   getRunConflicts: (id) => apiRequest(`/api/admin/planning/run/${id}/conflicts`, { method: "GET" }),
   submitRun: (id) => apiRequest(`/api/admin/planning/run/${id}/submit`, { method: "POST" }),
   publishRun: (id) => apiRequest(`/api/admin/planning/run/${id}/publish`, { method: "POST" }),
+  deleteRun: (id) => apiRequest(`/api/admin/planning/run/${id}`, { method: "DELETE" }),
+  
+  updatePlanningItem: (itemId, payload) =>
+    apiRequest(`/api/admin/planning/items/${itemId}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
-  listFormations: () => apiRequest("/api/admin/formations", { method: "GET" })
+  listFormations: () => apiRequest("/api/admin/formations", { method: "GET" }),
+  listProfesseurs: () => apiRequest("/api/admin/professeurs", { method: "GET" })
 };
 
 export const kpiApi = {

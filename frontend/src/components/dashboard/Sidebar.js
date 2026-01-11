@@ -31,6 +31,7 @@ export default function Sidebar({ role }) {
             <ul className="space-y-1">
               {items.map((item) => {
                 const isActive = pathname === item.href;
+                const IconComponent = item.icon;
                 return (
                   <li key={item.href}>
                     <Link
@@ -41,7 +42,7 @@ export default function Sidebar({ role }) {
                           : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
-                      <span>{item.icon}</span>
+                      <IconComponent className="h-5 w-5" />
                       <span>{item.label}</span>
                     </Link>
                   </li>
