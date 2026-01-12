@@ -25,7 +25,7 @@ export const authMiddleware = async (req, res, next) => {
 
     const { data: meta, error: metaError } = await supabaseAdmin
       .from('users_meta')
-      .select('id, role, dept_id, formation_id')
+      .select('id, role, dept_id, formation_id, id_prof, id_etudiant')
       .eq('id', user.id)
       .single();
 
@@ -38,7 +38,9 @@ export const authMiddleware = async (req, res, next) => {
       id: user.id,
       role: meta.role,
       dept_id: meta.dept_id,
-      formation_id: meta.formation_id
+      formation_id: meta.formation_id,
+      id_prof: meta.id_prof,
+      id_etudiant: meta.id_etudiant
     };
     next();
   } catch (err) {

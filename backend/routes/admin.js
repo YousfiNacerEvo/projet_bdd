@@ -29,24 +29,105 @@ const loadExpectedStudents = async (moduleIds) => {
 };
 
 /**
+ * Charge la map des étudiants inscrits par module
+ * Retourne: { module_id: [id_etudiant1, id_etudiant2, ...], ... }
+ */
+const loadModuleStudents = async (moduleIds) => {
+  if (!moduleIds.length) return {};
+  const { data, error } = await supabase
+    .from('inscription')
+    .select('id_module, id_etudiant')
+    .in('id_module', moduleIds);
+  if (error) throw error;
+  
+  const map = {};
+  data.forEach((row) => {
+    if (!map[row.id_module]) map[row.id_module] = [];
+    map[row.id_module].push(row.id_etudiant);
+  });
+  return map;
+};
+
+/**
+ * Vérifie si une date est un vendredi
+ */
+const isFriday = (dateStr) => {
+  const date = new Date(dateStr + 'T00:00:00');
+  return date.getDay() === 5; // 0=dimanche, 5=vendredi
+};
+
+/**
+ * Calcule la différence en jours entre deux dates
+ */
+const daysBetween = (date1Str, date2Str) => {
+  const d1 = new Date(date1Str + 'T00:00:00');
+  const d2 = new Date(date2Str + 'T00:00:00');
+  const diffTime = Math.abs(d2 - d1);
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+};
+
+/**
  * Répartition round-robin sur tous les créneaux disponibles pour éviter
  * la concentration sur le premier jour. Avance le pointeur de créneau
  * après chaque examen pour balayer l'ensemble de la période.
+ * 
+ * CONTRAINTES AJOUTÉES :
+ * 1. Aucun examen le vendredi
+ * 2. Un étudiant ne peut pas avoir 2 examens le même jour
+ * 3. Au moins 1 jour de repos entre les examens d'un étudiant
  */
-const chooseRoomSlot = (modulesSorted, salles, creneaux, expectedMap) => {
+const chooseRoomSlot = (modulesSorted, salles, creneaux, expectedMap, moduleStudentsMap = {}) => {
   // HARD guard: aucune collision salle+créneau
   const occupied = new Set(); // `${creneau_id}:${salle_id}`
   const items = [];
   const totalCapacityChosen = [];
   let slotIndex = 0;
+  
+  // Tracker des examens par étudiant: { id_etudiant: [date1, date2, ...] }
+  const studentExamDates = {};
 
   for (const mod of modulesSorted) {
     const expected = expectedMap[mod.id_module] || 0;
+    const studentsInModule = moduleStudentsMap[mod.id_module] || [];
     let best = null;
+    let conflictNote = null;
 
     // on tente creneaux.length fois au max, en avançant cycliquement
     for (let attempt = 0; attempt < creneaux.length; attempt += 1) {
       const c = creneaux[(slotIndex + attempt) % creneaux.length];
+      
+      // CONTRAINTE 1: Exclure les vendredis
+      if (isFriday(c.date)) {
+        continue;
+      }
+      
+      // CONTRAINTE 2 & 3: Vérifier les conflits étudiants
+      let hasStudentConflict = false;
+      for (const studentId of studentsInModule) {
+        const examDates = studentExamDates[studentId] || [];
+        
+        // Vérifier si l'étudiant a déjà un examen ce jour
+        if (examDates.includes(c.date)) {
+          hasStudentConflict = true;
+          break;
+        }
+        
+        // Vérifier le jour de repos (au moins 1 jour entre examens)
+        for (const existingDate of examDates) {
+          const gap = daysBetween(c.date, existingDate);
+          if (gap < 2) { // gap=0 même jour, gap=1 jours consécutifs => besoin gap>=2
+            hasStudentConflict = true;
+            break;
+          }
+        }
+        
+        if (hasStudentConflict) break;
+      }
+      
+      if (hasStudentConflict) {
+        continue; // Essayer le créneau suivant
+      }
+      
       const availableRooms = salles
         .filter((s) => {
           const key = `${c.id_creneau}:${s.id_salle}`;
@@ -68,9 +149,38 @@ const chooseRoomSlot = (modulesSorted, salles, creneaux, expectedMap) => {
     }
 
     // fallback: prendre la plus grande salle libre du créneau courant (capacity_exceeded)
+    // Mais toujours respecter les contraintes étudiants et vendredi
     if (!best) {
       for (let attempt = 0; attempt < creneaux.length; attempt += 1) {
         const c = creneaux[(slotIndex + attempt) % creneaux.length];
+        
+        // CONTRAINTE 1: Exclure les vendredis
+        if (isFriday(c.date)) {
+          continue;
+        }
+        
+        // CONTRAINTE 2 & 3: Vérifier les conflits étudiants
+        let hasStudentConflict = false;
+        for (const studentId of studentsInModule) {
+          const examDates = studentExamDates[studentId] || [];
+          if (examDates.includes(c.date)) {
+            hasStudentConflict = true;
+            break;
+          }
+          for (const existingDate of examDates) {
+            const gap = daysBetween(c.date, existingDate);
+            if (gap < 2) {
+              hasStudentConflict = true;
+              break;
+            }
+          }
+          if (hasStudentConflict) break;
+        }
+        
+        if (hasStudentConflict) {
+          continue;
+        }
+        
         const availableRooms = salles
           .filter((s) => {
             const key = `${c.id_creneau}:${s.id_salle}`;
@@ -86,19 +196,27 @@ const chooseRoomSlot = (modulesSorted, salles, creneaux, expectedMap) => {
     }
 
     if (!best) {
-      // Aucun créneau/salle libre
+      // Aucun créneau/salle libre respectant les contraintes
+      console.warn(`⚠️  Impossible de placer module ${mod.id_module} (${mod.nom || ''}) sans violer les contraintes`);
+      conflictNote = 'impossible_to_schedule';
       continue;
     }
 
     occupied.add(`${best.creneau.id_creneau}:${best.salle.id_salle}`);
     totalCapacityChosen.push(capacityForSalle(best.salle));
+    
+    // Enregistrer cet examen pour tous les étudiants du module
+    studentsInModule.forEach(studentId => {
+      if (!studentExamDates[studentId]) studentExamDates[studentId] = [];
+      studentExamDates[studentId].push(best.creneau.date);
+    });
 
     items.push({
       module_id: mod.id_module,
       salle_id: best.salle.id_salle,
       creneau_id: best.creneau.id_creneau,
       expected_students: expected,
-      notes: best.note
+      notes: best.note || conflictNote
     });
   }
 
@@ -111,6 +229,7 @@ const chooseRoomSlot = (modulesSorted, salles, creneaux, expectedMap) => {
             totalCapacityChosen.reduce((a, b) => a + b, 0)
         );
 
+  console.log(`✅ Planning généré: ${items.length} examens placés (${modulesSorted.length} modules)`);
   return { items, occupancy };
 };
 
@@ -118,8 +237,10 @@ const chooseRoomSlot = (modulesSorted, salles, creneaux, expectedMap) => {
  * Affecte des surveillants aux items en respectant une limite/jour.
  * maxPerDay: nb max d'examens surveillés par prof par jour
  * perExam: nb de surveillants souhaités par examen
+ * La fonction calcule automatiquement le nombre de surveillants nécessaires
+ * en fonction de la taille de la salle (1 surveillant par tranche de 40 élèves)
  */
-const assignSurveillants = (items, profs, creneauMap, { maxPerDay = 3, perExam = 1 } = {}) => {
+const assignSurveillants = (items, profs, creneauMap, salleMap, { maxPerDay = 3, basePerExam = 1 } = {}) => {
   if (!profs?.length) {
     return items.map((it) => ({ ...it, surveillants: [] }));
   }
@@ -129,6 +250,12 @@ const assignSurveillants = (items, profs, creneauMap, { maxPerDay = 3, perExam =
 
   return items.map((it) => {
     const date = creneauMap[it.creneau_id]?.date || 'no_date';
+    
+    // Calculer le nombre de surveillants nécessaires basé sur la capacité de la salle
+    const salle = salleMap[it.salle_id];
+    const salleCapacity = capacityForSalle(salle);
+    // 1 surveillant par tranche de 40 élèves, minimum 1
+    const requiredSurveillants = Math.max(1, Math.ceil(salleCapacity / 40));
 
     // Réordonne pour lisser la charge (plus disponible en premier)
     profPool.sort(
@@ -143,11 +270,15 @@ const assignSurveillants = (items, profs, creneauMap, { maxPerDay = 3, perExam =
       if (count >= maxPerDay) continue;
       chosen.push({ id_prof: p.id_prof, nom: p.nom, prenom: p.prenom });
       dailyCount[key] = count + 1;
-      if (chosen.length >= perExam) break;
+      if (chosen.length >= requiredSurveillants) break;
     }
 
-    const missing = chosen.length < perExam;
-    const notes = missing ? (it.notes ? `${it.notes}; surveillant_manquant` : 'surveillant_manquant') : it.notes;
+    const missing = chosen.length < requiredSurveillants;
+    let notes = it.notes;
+    if (missing) {
+      const missingNote = `surveillant_manquant (${chosen.length}/${requiredSurveillants})`;
+      notes = notes ? `${notes}; ${missingNote}` : missingNote;
+    }
     return { ...it, surveillants: chosen, notes };
   });
 };
@@ -161,13 +292,30 @@ router.get('/salles', async (_req, res) => {
 
 router.post('/salles', async (req, res) => {
   const payload = req.body || {};
+  
+  // Validation: capacité maximum de 40 élèves
+  const capacite = payload.capacite ?? payload.capacite_normale;
+  const capaciteExamen = payload.capacite_examen ?? payload.capacite ?? payload.capacite_normale;
+  
+  if (capacite && capacite > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
+  if (capaciteExamen && capaciteExamen > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
   const row = {
     nom: payload.nom,
     batiment: payload.batiment,
     type: payload.type,
-    capacite: payload.capacite ?? payload.capacite_normale,
+    capacite: capacite,
     capacite_normale: payload.capacite_normale ?? payload.capacite,
-    capacite_examen: payload.capacite_examen ?? payload.capacite ?? payload.capacite_normale
+    capacite_examen: capaciteExamen
   };
   const { data, error } = await supabase.from('salle').insert(row).select().single();
   if (error) return res.status(500).json({ error: error.message });
@@ -177,6 +325,26 @@ router.post('/salles', async (req, res) => {
 router.patch('/salles/:id', async (req, res) => {
   const id = Number(req.params.id);
   const payload = req.body || {};
+  
+  // Validation: capacité maximum de 40 élèves
+  if (payload.capacite && payload.capacite > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
+  if (payload.capacite_normale && payload.capacite_normale > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité normale d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
+  if (payload.capacite_examen && payload.capacite_examen > 40) {
+    return res.status(400).json({ 
+      error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves' 
+    });
+  }
+  
   const updates = {
     nom: payload.nom,
     batiment: payload.batiment,
@@ -268,6 +436,13 @@ router.delete('/creneaux/:id', async (req, res) => {
 // ---------- Formations (pour affichage planning) ----------
 router.get('/formations', async (_req, res) => {
   const { data, error } = await supabase.from('formation').select('id_formation, nom');
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// ---------- Professeurs (pour édition planning) ----------
+router.get('/professeurs', async (_req, res) => {
+  const { data, error } = await supabase.from('professeur').select('id_prof, nom, prenom, id_dept').order('nom');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
@@ -372,15 +547,22 @@ router.post('/planning/run', async (req, res) => {
     }
 
     const expectedMap = await loadExpectedStudents(moduleIds);
+    const moduleStudentsMap = await loadModuleStudents(moduleIds);
     const modulesSorted = [...modules].sort(
       (a, b) => (expectedMap[b.id_module] || 0) - (expectedMap[a.id_module] || 0)
     );
-    const { items, occupancy } = chooseRoomSlot(modulesSorted, salles, creneaux, expectedMap);
+    const { items, occupancy } = chooseRoomSlot(modulesSorted, salles, creneaux, expectedMap, moduleStudentsMap);
+
+    // Create salle map for surveillant assignment
+    const salleMap = {};
+    salles.forEach((s) => {
+      salleMap[s.id_salle] = s;
+    });
 
     const itemsWithRun = items.map((i) => ({ ...i, run_id: run.id }));
-    const itemsWithSurv = assignSurveillants(itemsWithRun, profs || [], creneauMap, {
+    const itemsWithSurv = assignSurveillants(itemsWithRun, profs || [], creneauMap, salleMap, {
       maxPerDay: 3,
-      perExam: 1
+      basePerExam: 1
     });
     const pairSet = new Set();
     let duplicatePairs = 0;
@@ -463,6 +645,49 @@ router.get('/planning/run/:id/items', async (req, res) => {
     .order('heure_debut', { ascending: true, foreignTable: 'creneau' });
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+});
+
+router.patch('/planning/items/:itemId', async (req, res) => {
+  try {
+    const itemId = req.params.itemId;
+    const payload = req.body || {};
+    
+    // Construire l'objet de mise à jour
+    const updates = {};
+    if (payload.salle_id !== undefined) updates.salle_id = payload.salle_id;
+    if (payload.creneau_id !== undefined) updates.creneau_id = payload.creneau_id;
+    if (payload.expected_students !== undefined) updates.expected_students = payload.expected_students;
+    if (payload.surveillants !== undefined) updates.surveillants = payload.surveillants;
+    if (payload.notes !== undefined) updates.notes = payload.notes;
+    
+    const { data, error } = await supabase
+      .from('planning_items')
+      .update(updates)
+      .eq('id', itemId)
+      .select(`
+        id,
+        module_id,
+        salle_id,
+        creneau_id,
+        expected_students,
+        notes,
+        surveillants,
+        creneau:creneau_id (date, heure_debut, heure_fin),
+        salle:salle_id (nom, capacite_examen, capacite),
+        module:module_id (nom, id_formation)
+      `)
+      .single();
+    
+    if (error) {
+      console.error('[PATCH /planning/items/:itemId] error', error);
+      return res.status(500).json({ error: error.message });
+    }
+    
+    res.json(data);
+  } catch (err) {
+    console.error('[PATCH /planning/items/:itemId] unexpected error', err);
+    res.status(500).json({ error: err.message || 'Erreur serveur' });
+  }
 });
 
 router.get('/planning/run/:id/conflicts', async (req, res) => {
@@ -584,6 +809,58 @@ router.post('/planning/run/:id/publish', async (req, res) => {
   } catch (err) {
     console.error('[planning/publish] error', err);
     res.status(500).json({ error: err.message || 'Erreur publication' });
+  }
+});
+
+router.delete('/planning/run/:id', async (req, res) => {
+  const runId = req.params.id;
+  try {
+    // Vérifier si le run existe
+    const { data: run, error: runErr } = await supabase
+      .from('planning_runs')
+      .select('*')
+      .eq('id', runId)
+      .single();
+    
+    if (runErr || !run) {
+      return res.status(404).json({ error: 'Run introuvable' });
+    }
+
+    // Empêcher la suppression d'un run publié
+    if (run.published) {
+      return res.status(403).json({ 
+        error: 'Impossible de supprimer un run publié',
+        details: 'Veuillez d\'abord dépublier le run avant de le supprimer'
+      });
+    }
+
+    // Supprimer d'abord les planning_items associés
+    const { error: itemsErr } = await supabase
+      .from('planning_items')
+      .delete()
+      .eq('run_id', runId);
+    
+    if (itemsErr) {
+      console.error('[DELETE /planning/run/:id] Error deleting items', itemsErr);
+      throw itemsErr;
+    }
+
+    // Supprimer le run
+    const { error: deleteErr } = await supabase
+      .from('planning_runs')
+      .delete()
+      .eq('id', runId);
+    
+    if (deleteErr) {
+      console.error('[DELETE /planning/run/:id] Error deleting run', deleteErr);
+      throw deleteErr;
+    }
+
+    console.log('[planning/delete] run', runId, 'deleted by', req.user.id);
+    res.json({ ok: true, message: 'Run supprimé avec succès' });
+  } catch (err) {
+    console.error('[planning/delete] error', err);
+    res.status(500).json({ error: err.message || 'Erreur lors de la suppression' });
   }
 });
 

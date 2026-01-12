@@ -18,7 +18,7 @@ const runMeta = (run) =>
       }
     : null;
 
-const resolveRun = async (runId) => {
+const resolveRun = async (runId, requirePublished = false) => {
   if (runId) {
     const { data, error } = await supabaseAdmin.from('planning_runs').select('*').eq('id', runId).single();
     if (error || !data) throw new Error("Run introuvable");
@@ -37,7 +37,12 @@ const resolveRun = async (runId) => {
   if (published) return published;
   if (pubErr && pubErr.code !== 'PGRST116') throw pubErr; // PGRST116 = no rows
 
-  // Fallback sur dernier run "done"
+  // Si on requiert un run publié (pour étudiant), ne pas fallback
+  if (requirePublished) {
+    throw new Error("Aucun planning publié disponible");
+  }
+
+  // Fallback sur dernier run "done" (pour admin/chef/doyen uniquement)
   const { data: lastDone, error: lastErr } = await supabaseAdmin
     .from('planning_runs')
     .select('*')
@@ -270,7 +275,13 @@ const upcomingFromItems = (items, formationId) => {
 router.get('/', async (req, res) => {
   try {
     const runId = req.query.run_id || null;
-    const run = await resolveRun(runId);
+    const user = req.user;
+    const role = user?.role;
+    
+    // Pour étudiant: uniquement runs publiés
+    const requirePublished = (role === 'etudiant');
+    const run = await resolveRun(runId, requirePublished);
+    
     const [itemsRaw, deptNames, totalRooms, formationsMap] = await Promise.all([
       loadItems(run.id),
       loadDepartements(),
@@ -290,8 +301,6 @@ router.get('/', async (req, res) => {
       run.metrics?.duration_ms ||
       (run.started_at && run.ended_at ? new Date(run.ended_at).getTime() - new Date(run.started_at).getTime() : null);
 
-    const user = req.user;
-    const role = user?.role;
     const base = computeBase(items, totalRooms);
 
     let payload = { ...base, generation_duration_ms: durationMs };
@@ -329,11 +338,29 @@ router.get('/', async (req, res) => {
         todo: 'Surveillance à implémenter (v1 placeholder)'
       };
     } else if (role === 'etudiant') {
-      const upcoming = upcomingFromItems(items, user.formation_id);
+      // ⚠️ Validation formation_id
+      if (!user.formation_id) {
+        return res.status(400).json({
+          error: 'formation_id manquant dans users_meta',
+          message: 'Votre profil étudiant n\'est pas configuré correctement. Contactez l\'administrateur.'
+        });
+      }
+      
+      // Filtrer TOUS les items par formation_id
+      const studentItems = items.filter((it) => {
+        const fid = it.module?.formation?.id_formation || it.module?.id_formation;
+        return fid === user.formation_id;
+      });
+      
+      // Calculer les stats UNIQUEMENT sur les examens de l'étudiant
+      const studentBase = computeBase(studentItems, totalRooms);
+      const upcoming = upcomingFromItems(studentItems, user.formation_id);
+      
       payload = {
-        exams_count: upcoming.length,
+        exams_count: studentItems.length,
         upcoming_exams: upcoming,
-        exams_per_day: base.exams_per_day
+        exams_per_day: studentBase.exams_per_day,
+        days_covered: studentBase.days_covered
       };
     } else {
       payload = { message: 'Role non géré' };
