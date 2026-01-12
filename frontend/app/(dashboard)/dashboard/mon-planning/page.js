@@ -116,17 +116,34 @@ export default function MonPlanningPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await planningApi.getPublished();
+      // Utiliser l'endpoint dédié /me pour filtrage côté serveur
+      const data = await planningApi.getPublishedMe();
       console.log("[mon-planning] Données reçues:", {
         run: data.run,
         itemsCount: data.items?.length || 0,
+        message: data.message,
         items: data.items
       });
+      
+      // Gérer le cas "Aucun planning publié"
+      if (data.message && !data.run) {
+        setRun(null);
+        setItems([]);
+        setError("");
+        return;
+      }
+      
       setRun(data.run);
       setItems(data.items || []);
     } catch (err) {
       console.error("[mon-planning] load error", err);
-      setError(err.message || "Erreur");
+      
+      // Afficher un message explicite pour formation_id manquant
+      if (err.message?.includes('formation_id manquant')) {
+        setError("Votre profil étudiant n'est pas configuré correctement. Contactez l'administrateur.");
+      } else {
+        setError(err.message || "Erreur");
+      }
     } finally {
       setLoading(false);
     }

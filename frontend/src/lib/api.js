@@ -1,6 +1,6 @@
 // Helper pour les appels API vers Express
 
-const API_URL ="http://localhost:4001"
+const API_URL ="https://projet-bdd-8nz1.onrender.com"
 "https://projet-bdd-8nz1.onrender.com"
 "http://localhost:4001" 
 
@@ -110,6 +110,7 @@ export const doyenApi = {
 };
 
 export const planningApi = {
-  getPublished: () => apiRequest("/api/planning/published", { method: "GET" })
+  getPublished: () => apiRequest("/api/planning/published", { method: "GET" }),
+  getPublishedMe: () => apiRequest("/api/planning/published/me", { method: "GET" })
 };
 

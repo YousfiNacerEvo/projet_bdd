@@ -18,7 +18,7 @@ export const NAV_ITEMS = [
     label: "Vue d'ensemble",
     href: "/dashboard/overview",
     group: "principal",
-    roles: ["etudiant", "prof", "chef_dept", "admin_examens", "doyen"],
+    roles: ["chef_dept", "admin_examens", "doyen"],
     icon: ChartBarIcon
   },
   {
@@ -47,7 +47,7 @@ export const NAV_ITEMS = [
     label: "KPIs",
     href: "/dashboard/kpis",
     group: "departement",
-    roles: ["chef_dept", "doyen", "admin_examens", "prof", "etudiant"],
+    roles: ["chef_dept", "doyen", "admin_examens"],
     icon: ChartPieIcon
   },
   {
