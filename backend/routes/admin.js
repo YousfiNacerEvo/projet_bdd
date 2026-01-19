@@ -293,20 +293,24 @@ router.get('/salles', async (_req, res) => {
 router.post('/salles', async (req, res) => {
   const payload = req.body || {};
   
-  // Validation: capacité maximum de 40 élèves
+  // Validation: capacité maximum de 40 élèves pour les salles normales, illimité pour les amphi
   const capacite = payload.capacite ?? payload.capacite_normale;
   const capaciteExamen = payload.capacite_examen ?? payload.capacite ?? payload.capacite_normale;
+  const type = payload.type || 'salle';
   
-  if (capacite && capacite > 40) {
-    return res.status(400).json({ 
-      error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves' 
-    });
-  }
-  
-  if (capaciteExamen && capaciteExamen > 40) {
-    return res.status(400).json({ 
-      error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves' 
-    });
+  // Limite uniquement pour les salles normales, pas pour les amphithéâtres
+  if (type === 'salle') {
+    if (capacite && capacite > 40) {
+      return res.status(400).json({ 
+        error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves (utilisez le type "amphi" pour une capacité supérieure)' 
+      });
+    }
+    
+    if (capaciteExamen && capaciteExamen > 40) {
+      return res.status(400).json({ 
+        error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves (utilisez le type "amphi" pour une capacité supérieure)' 
+      });
+    }
   }
   
   const row = {
@@ -326,23 +330,28 @@ router.patch('/salles/:id', async (req, res) => {
   const id = Number(req.params.id);
   const payload = req.body || {};
   
-  // Validation: capacité maximum de 40 élèves
-  if (payload.capacite && payload.capacite > 40) {
-    return res.status(400).json({ 
-      error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves' 
-    });
-  }
+  // Validation: capacité maximum de 40 élèves pour les salles normales, illimité pour les amphi
+  const type = payload.type || 'salle';
   
-  if (payload.capacite_normale && payload.capacite_normale > 40) {
-    return res.status(400).json({ 
-      error: 'La capacité normale d\'une salle ne peut pas dépasser 40 élèves' 
-    });
-  }
-  
-  if (payload.capacite_examen && payload.capacite_examen > 40) {
-    return res.status(400).json({ 
-      error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves' 
-    });
+  // Limite uniquement pour les salles normales, pas pour les amphithéâtres
+  if (type === 'salle') {
+    if (payload.capacite && payload.capacite > 40) {
+      return res.status(400).json({ 
+        error: 'La capacité d\'une salle ne peut pas dépasser 40 élèves (utilisez le type "amphi" pour une capacité supérieure)' 
+      });
+    }
+    
+    if (payload.capacite_normale && payload.capacite_normale > 40) {
+      return res.status(400).json({ 
+        error: 'La capacité normale d\'une salle ne peut pas dépasser 40 élèves (utilisez le type "amphi" pour une capacité supérieure)' 
+      });
+    }
+    
+    if (payload.capacite_examen && payload.capacite_examen > 40) {
+      return res.status(400).json({ 
+        error: 'La capacité d\'examen d\'une salle ne peut pas dépasser 40 élèves (utilisez le type "amphi" pour une capacité supérieure)' 
+      });
+    }
   }
   
   const updates = {

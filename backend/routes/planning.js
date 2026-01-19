@@ -15,63 +15,63 @@ const supabase = supabaseAdmin || createClient(supabaseUrl, supabaseServiceRoleK
 
 // Helper pour charger le planning publié
 const loadPublishedPlanning = async () => {
-  const { data: run, error: runErr } = await supabase
-    .from('planning_runs')
-    .select('*')
-    .eq('published', true)
-    .order('published_at', { ascending: false })
-    .limit(1)
-    .single();
+    const { data: run, error: runErr } = await supabase
+      .from('planning_runs')
+      .select('*')
+      .eq('published', true)
+      .order('published_at', { ascending: false })
+      .limit(1)
+      .single();
 
-  if (runErr && runErr.code !== 'PGRST116') throw runErr;
+    if (runErr && runErr.code !== 'PGRST116') throw runErr;
   if (!run) return { run: null, items: [] };
 
-  // Charger les formations pour hydratation
-  const { data: formationsData, error: formErr } = await supabase
-    .from('formation')
-    .select('*');
-  if (formErr) console.error('[planning/published] formations error', formErr);
-  
-  const formationsMap = {};
-  (formationsData || []).forEach((f) => {
-    formationsMap[f.id_formation] = f;
-  });
-
-  const { data: itemsRaw, error: itemsErr } = await supabase
-    .from('planning_items')
-    .select(
-      `
-      id,
-      module_id,
-      salle_id,
-      creneau_id,
-      expected_students,
-      notes,
-      surveillants,
-      creneau:creneau_id (date, heure_debut, heure_fin),
-      salle:salle_id (nom, capacite_examen, capacite),
-      module:module_id (nom, id_formation)
-    `
-    )
-    .eq('run_id', run.id)
-    .order('date', { ascending: true, foreignTable: 'creneau' })
-    .order('heure_debut', { ascending: true, foreignTable: 'creneau' });
-  if (itemsErr) {
-    console.error('[planning/published] items error', {
-      code: itemsErr.code,
-      message: itemsErr.message,
-      details: itemsErr.details
+    // Charger les formations pour hydratation
+    const { data: formationsData, error: formErr } = await supabase
+      .from('formation')
+      .select('*');
+    if (formErr) console.error('[planning/published] formations error', formErr);
+    
+    const formationsMap = {};
+    (formationsData || []).forEach((f) => {
+      formationsMap[f.id_formation] = f;
     });
-    throw itemsErr;
-  }
+
+    const { data: itemsRaw, error: itemsErr } = await supabase
+      .from('planning_items')
+      .select(
+        `
+        id,
+        module_id,
+        salle_id,
+        creneau_id,
+        expected_students,
+        notes,
+        surveillants,
+        creneau:creneau_id (date, heure_debut, heure_fin),
+        salle:salle_id (nom, capacite_examen, capacite),
+        module:module_id (nom, id_formation)
+      `
+      )
+      .eq('run_id', run.id)
+      .order('date', { ascending: true, foreignTable: 'creneau' })
+      .order('heure_debut', { ascending: true, foreignTable: 'creneau' });
+    if (itemsErr) {
+      console.error('[planning/published] items error', {
+        code: itemsErr.code,
+        message: itemsErr.message,
+        details: itemsErr.details
+      });
+      throw itemsErr;
+    }
 
   // Hydrater les formations manuellement
-  const items = (itemsRaw || []).map((it) => {
-    if (it.module?.id_formation && formationsMap[it.module.id_formation]) {
-      it.module.formation = formationsMap[it.module.id_formation];
-    }
-    return it;
-  });
+    const items = (itemsRaw || []).map((it) => {
+      if (it.module?.id_formation && formationsMap[it.module.id_formation]) {
+        it.module.formation = formationsMap[it.module.id_formation];
+      }
+      return it;
+    });
 
   return { run, items };
 };
