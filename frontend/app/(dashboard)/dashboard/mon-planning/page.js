@@ -142,7 +142,7 @@ export default function MonPlanningPage() {
       if (err.message?.includes('formation_id manquant')) {
         setError("Votre profil étudiant n'est pas configuré correctement. Contactez l'administrateur.");
       } else {
-        setError(err.message || "Erreur");
+      setError(err.message || "Erreur");
       }
     } finally {
       setLoading(false);
