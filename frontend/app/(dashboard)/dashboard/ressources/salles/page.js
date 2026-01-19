@@ -47,18 +47,21 @@ export default function SallesPage() {
     e.preventDefault();
     setError("");
     
-    // Validation côté client: capacité maximum 40 élèves
+    // Validation côté client: capacité maximum 40 élèves pour les salles, illimité pour les amphi
     const capacite = Number(form.capacite);
     const capaciteExamen = Number(form.capacite_examen || form.capacite);
     
-    if (capacite > 40) {
-      setError("La capacité d'une salle ne peut pas dépasser 40 élèves");
-      return;
-    }
-    
-    if (capaciteExamen > 40) {
-      setError("La capacité d'examen d'une salle ne peut pas dépasser 40 élèves");
-      return;
+    // Limite de 40 uniquement pour les salles, pas pour les amphithéâtres
+    if (form.type === "salle") {
+      if (capacite > 40) {
+        setError("La capacité d'une salle ne peut pas dépasser 40 élèves (utilisez le type 'Amphi' pour une capacité supérieure)");
+        return;
+      }
+      
+      if (capaciteExamen > 40) {
+        setError("La capacité d'examen d'une salle ne peut pas dépasser 40 élèves (utilisez le type 'Amphi' pour une capacité supérieure)");
+        return;
+      }
     }
     
     try {
@@ -198,32 +201,42 @@ export default function SallesPage() {
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Capacité normale (max 40)
+                  Capacité normale {form.type === "salle" && "(max 40)"}
                 </label>
                 <input
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  placeholder="30"
+                  placeholder={form.type === "amphi" ? "150" : "30"}
                   type="number"
                   min="1"
-                  max="40"
+                  max={form.type === "salle" ? "40" : undefined}
                   value={form.capacite}
                   onChange={(e) => setForm({ ...form, capacite: e.target.value })}
                   required
                 />
+                {form.type === "amphi" && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Pas de limite pour les amphithéâtres
+                  </p>
+                )}
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Capacité examen (optionnel)
+                  Capacité examen (optionnel) {form.type === "salle" && "(max 40)"}
                 </label>
                 <input
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  placeholder="25"
+                  placeholder={form.type === "amphi" ? "120" : "25"}
                   type="number"
                   min="1"
-                  max="40"
+                  max={form.type === "salle" ? "40" : undefined}
                   value={form.capacite_examen}
                   onChange={(e) => setForm({ ...form, capacite_examen: e.target.value })}
                 />
+                {form.type === "amphi" && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Pas de limite pour les amphithéâtres
+                  </p>
+                )}
               </div>
             </div>
             
