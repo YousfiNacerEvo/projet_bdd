@@ -1,0 +1,16 @@
+Comptes de test pour la plateforme :
+
+Doyen
+Email : naceryousfi007@gmail.com
+
+Administrateur des examens
+Email : mader2000003@gmail.com
+
+Étudiant
+Email : elias.bertrand.etd@univ-demo.fr
+
+Professeur
+Email : emma.fournier@univ-demo.fr
+
+Mot de passe pour tous les comptes :
+minecraft
