@@ -165,7 +165,7 @@ export default function GeneratePlanningPage() {
                 <select
                   value={scope}
                   onChange={(e) => setScope(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 text-gray-900"
                 >
                   <option value="global">Global (toute l'université)</option>
                   {/* <option value="departement">Département</option>

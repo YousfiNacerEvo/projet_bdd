@@ -17,8 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { setUser } = useUserStore();
-  const API_URL = "https://projet-bdd-8nz1.onrender.com"; 
-  "http://localhost:4001"
+  const API_URL = "https://projet-bdd-8nz1.onrender.com";
 
 
   const handleSubmit = async (e) => {
